@@ -73,10 +73,22 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
           if (saveButton) {
             saveButton.click();
+
+            // TODO: Detect success (e.g., via another MutationObserver or timeout)
+            // Update the stored list of clicked URLs:
+            browser.storage.local.get("clickedUrls", (result) => {
+              let urls = result.clickedUrls || [];
+              urls.push(tabUrl);
+              // Optionally remove duplicates
+              urls = [...new Set(urls)];
+              browser.storage.local.set({ clickedUrls: urls }, () => {
+                console.log("Tab URL updated locally with list:", urls);
+              });
+            });
           } else {
             console.error("Dreaming Spanish Helper: 'save' button not found.");
           }
-          window.close();
+          // window.close();
         }
       }
     });

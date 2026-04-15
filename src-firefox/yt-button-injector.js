@@ -1,5 +1,48 @@
 console.log("[Dreaming Spanish Helper] Injecting button...");
 
+// Track the current button to prevent multiple injections
+// and edit the button's image based on if the video is already saved
+let currentButton = null;
+
+// Function to refresh the button's image and URL
+function refreshButton() {
+  if (!currentButton) return;
+  // Set mode by url
+  let mode = "youtube";
+  if (window.location.href.includes("spotify")) {
+    mode = "spotify";
+  }
+
+  // Get the current tab's URL
+  let tabUrl = window.location.href;
+  if (mode === "youtube") {
+  }
+  else if (mode === "spotify") {
+    const urlElement = document.querySelector('[data-testid="context-item-link"]');
+    if (urlElement && urlElement.href) {
+      tabUrl = urlElement.href;
+    }
+    else {
+      return
+    }
+  }
+
+  console.log("Editing button...");
+  // Edit currentButton
+  const img = currentButton.querySelector("img");
+  // Different image depending if video already saved
+  browser.storage.local.get("clickedUrls", (result) => {
+    let clickedUrls = result.clickedUrls || [];
+    // console.log("URLs clicked: ")
+    // console.log(clickedUrls);
+    if (clickedUrls.includes(tabUrl)) {
+      img.src = chrome.runtime.getURL("dreamingplus-clicked.png"); // Different image for clicked URL
+    } else {
+      img.src = chrome.runtime.getURL("dreamingplus.png");
+    }
+  });
+}
+
 // Function to create and inject the button
 function createButton() {
   // Prevent injecting multiple buttons
@@ -15,8 +58,37 @@ function createButton() {
   const button = document.createElement("button");
   button.id = "dreaming-spanish-button"; // Assign a unique ID
 
+  currentButton = button;
+
+  // Get the current tab's URL
+  let tabUrl = window.location.href;
+  if (mode === "youtube") {
+  }
+  else if (mode === "spotify") {
+    const urlElement = document.querySelector('[data-testid="context-item-link"]');
+    if (urlElement && urlElement.href) {
+      tabUrl = urlElement.href;
+    }
+    else {
+      return
+    }
+  }
+
   // Create the img element
   const img = document.createElement("img");
+  // Different image depending if video already saved
+  browser.storage.local.get("clickedUrls", (result) => {
+    let clickedUrls = result.clickedUrls || [];
+    console.log("URLs clicked: ")
+    console.log(clickedUrls);
+    if (clickedUrls.includes(tabUrl)) {
+      img.src = chrome.runtime.getURL("dreamingplus-clicked.png"); // Different image for clicked URL
+    } else {
+      img.src = chrome.runtime.getURL("dreamingplus.png");
+    }
+  });
+
+
   img.src = chrome.runtime.getURL("dreamingplus.png"); // Reference the image
   img.alt = "Add to Dreaming Spanish"; // Alt text for accessibility
 
@@ -95,15 +167,15 @@ function createButton() {
     }
 
     // Get the current tab's URL
-    let tabUrl = window.location.href;
-    if (mode === "youtube") {
-    }
-    else if (mode === "spotify") {
-      const urlElement = document.querySelector('[data-testid="context-item-link"]');
-      if (urlElement.href) {
-        tabUrl = urlElement.href;
-      }
-    }
+    // let tabUrl = window.location.href;
+    // if (mode === "youtube") {
+    // }
+    // else if (mode === "spotify") {
+    //   const urlElement = document.querySelector('[data-testid="context-item-link"]');
+    //   if (urlElement.href) {
+    //     tabUrl = urlElement.href;
+    //   }
+    // }
 
     let title = "Untitled";
     // Retrieve the video title
@@ -157,20 +229,29 @@ function createButton() {
       },
       (response) => {}
     );
+
+    // Refresh button after a set delay (e.g., 2000 milliseconds)
+    setTimeout(() => {
+      refreshButton();
+    }, 5000);
   });
 }
 
 // Function to observe DOM changes and inject the button when .ytp-right-controls is available
 function observeDOM() {
-  const targetNode = document.body;
+  // const targetNode = document.body;
+  // ytd-player
+  const targetNode = document.querySelector("ytd-player");
   const config = { childList: true, subtree: true };
   let lastExecutionTime = 0;
   const timeout = 3000;
 
+  
   const callback = function (mutationsList, observer) {
-
+    
     // Delay to avoid overdoing page traversal
     const currentTime = Date.now();
+    console.log(currentTime);
     if ((currentTime - lastExecutionTime) < timeout) {
       return;
     }
@@ -191,14 +272,48 @@ function observeDOM() {
 }
 
 createButton();
-observeDOM();
+// observeDOM();
 
 // Handle YouTube's Single Page Application (SPA) navigation
 // Listen for history changes to re-inject the button on new video loads
-let lastUrl = location.href;
-setInterval(() => {
-  if (location.href !== lastUrl) {
-    lastUrl = location.href;
+// let lastUrl = location.href;
+// setInterval(() => {
+//   if (location.href !== lastUrl) {
+//     lastUrl = location.href;
+//     createButton();
+//   }
+//   console.log("Refreshing button...");
+//   refreshButton();
+// }, 4000);
+
+
+// Override pushState and replaceState, then dispatch a custom event
+(function() {
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function(...args) {
+      originalPushState.apply(history, args);
+      window.dispatchEvent(new Event('locationchange'));
+  };
+
+  history.replaceState = function(...args) {
+      originalReplaceState.apply(history, args);
+      window.dispatchEvent(new Event('locationchange'));
+  };
+
+  window.addEventListener('popstate', () => {
+      window.dispatchEvent(new Event('locationchange'));
+  });
+})();
+
+// Listen for the custom 'locationchange' event
+window.addEventListener('locationchange', () => {
+  console.log('URL changed to:', location.href);
+  setTimeout(() => {
     createButton();
-  }
-}, 1000);
+    refreshButton();
+  }, 3000);
+  // createButton();
+  // refreshButton();
+});
